@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WinDepot | Tek Tıkla Windows Kurulumu</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 10px; }
+        .app-card.active { border-color: #3b82f6; background: #1e293b; }
+    </style>
+</head>
+<body class="bg-[#0f172a] text-slate-200 min-h-screen pb-32">
+
+    <nav class="sticky top-0 z-50 bg-[#0f172a]/90 backdrop-blur-md border-b border-slate-800 p-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-2">
+                <i class="fa-solid fa-box-open text-blue-500 text-2xl"></i>
+                <h1 class="text-xl font-bold tracking-tighter">WINDEPOT <span class="text-blue-500">v1.0</span></h1>
+            </div>
+            <input type="text" id="searchInput" oninput="filterApps()" placeholder="500+ uygulama içinde ara..." 
+                   class="bg-slate-900 border border-slate-700 rounded-lg px-4 py-2 w-full md:w-96 focus:ring-2 focus:ring-blue-500 outline-none transition-all">
+        </div>
+    </nav>
+
+    <div class="max-w-7xl mx-auto p-6 flex flex-col md:flex-row gap-6">
+        <aside class="w-full md:w-64 space-y-2">
+            <p class="text-xs font-semibold text-slate-500 uppercase px-4 mb-2">Kategoriler</p>
+            <div id="categoryList" class="flex flex-wrap md:flex-col gap-1">
+                </div>
+        </aside>
+
+        <main class="flex-1">
+            <div id="appGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                </div>
+        </main>
+    </div>
+
+    <div class="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-4 shadow-2xl z-50">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
+            <div class="w-full overflow-hidden">
+                <p class="text-xs text-slate-500 font-mono mb-1 uppercase">Oluşturulan Kurulum Komutu:</p>
+                <div class="bg-black rounded p-3 font-mono text-sm text-emerald-400 overflow-x-auto whitespace-nowrap border border-slate-700" id="cmdOutput">
+                    winget install --id ...
+                </div>
+            </div>
+            <button onclick="copyCommand()" class="w-full md:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-lg font-bold transition-all flex items-center justify-center gap-2">
+                <i class="fa-regular fa-copy"></i> Komutu Kopyala
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const apps = [
+            // TARAYICILAR
+            { name: "Google Chrome", id: "Google.Chrome", cat: "Tarayıcılar" },
+            { name: "Mozilla Firefox", id: "Mozilla.Firefox", cat: "Tarayıcılar" },
+            { name: "Brave Browser", id: "Brave.Brave", cat: "Tarayıcılar" },
+            { name: "Opera GX", id: "Opera.OperaGX", cat: "Tarayıcılar" },
+
+            // YAZILIM & GELİŞTİRİCİ
+            { name: "VS Code", id: "Microsoft.VisualStudioCode", cat: "Yazılım" },
+            { name: "Git", id: "Git.Git", cat: "Yazılım" },
+            { name: "Docker Desktop", id: "Docker.DockerDesktop", cat: "Yazılım" },
+            { name: "Python 3.12", id: "Python.Python.3.12", cat: "Yazılım" },
+            { name: "Node.js LTS", id: "OpenJS.NodeJS.LTS", cat: "Yazılım" },
+            { name: "Postman", id: "Postman.Postman", cat: "Yazılım" },
+
+            // SOSYAL & İLETİŞİM
+            { name: "Discord", id: "Discord.Discord", cat: "Sosyal" },
+            { name: "WhatsApp", id: "WhatsApp.WhatsApp", cat: "Sosyal" },
+            { name: "Telegram Desktop", id: "Telegram.TelegramDesktop", cat: "Sosyal" },
+            { name: "Zoom", id: "Zoom.Zoom", cat: "Sosyal" },
+
+            // MEDYA & TASARIM
+            { name: "Spotify", id: "Spotify.Spotify", cat: "Medya" },
+            { name: "VLC Player", id: "VideoLAN.VLC", cat: "Medya" },
+            { name: "OBS Studio", id: "obsproject.obs-studio", cat: "Medya" },
+            { name: "Blender", id: "BlenderFoundation.Blender", cat: "Tasarım" },
+
+            // ARAÇLAR & OYUN
+            { name: "7-Zip", id: "7zip.7zip", cat: "Araçlar" },
+            { name: "PowerToys", id: "Microsoft.PowerToys", cat: "Araçlar" },
+            { name: "Steam", id: "Valve.Steam", cat: "Oyun" },
+            { name: "Epic Games", id: "EpicGames.EpicGamesLauncher", cat: "Oyun" }
+        ];
+
+        let selected = new Set();
+        let currentCat = "Hepsi";
+
+        function init() {
+            const cats = ["Hepsi", ...new Set(apps.map(a => a.cat))];
+            const catContainer = document.getElementById('categoryList');
+            catContainer.innerHTML = cats.map(c => `
+                <button onclick="filterCategory('${c}')" class="px-4 py-2 rounded-lg text-sm text-left hover:bg-slate-800 transition ${currentCat === c ? 'bg-blue-600 text-white' : ''}">${c}</button>
+            `).join('');
+            render();
+        }
+
+        function render() {
+            const term = document.getElementById('searchInput').value.toLowerCase();
+            const grid = document.getElementById('appGrid');
+            
+            const filtered = apps.filter(a => {
+                const matchSearch = a.name.toLowerCase().includes(term) || a.id.toLowerCase().includes(term);
+                const matchCat = currentCat === "Hepsi" || a.cat === currentCat;
+                return matchSearch && matchCat;
+            });
+
+            grid.innerHTML = filtered.map(app => `
+                <div onclick="toggleApp('${app.id}')" class="app-card border border-slate-800 p-4 rounded-xl cursor-pointer transition-all hover:scale-[1.02] ${selected.has(app.id) ? 'active' : ''}">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">${app.name}</span>
+                        <i class="fa-solid ${selected.has(app.id) ? 'fa-circle-check text-blue-500' : 'fa-circle text-slate-700'}"></i>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-1">${app.id}</p>
+                </div>
+            `).join('');
+        }
+
+        function toggleApp(id) {
+            if(selected.has(id)) selected.delete(id);
+            else selected.add(id);
+            updateCommand();
+            render();
+        }
+
+        function filterCategory(cat) {
+            currentCat = cat;
+            init();
+            render();
+        }
+
+        function filterApps() { render(); }
+
+        function updateCommand() {
+            if(selected.size === 0) {
+                document.getElementById('cmdOutput').innerText = "winget install --id ...";
+                return;
+            }
+            const cmd = Array.from(selected).map(id => `winget install -e --id ${id}`).join(' ; ');
+            document.getElementById('cmdOutput').innerText = cmd;
+        }
+
+        function copyCommand() {
+            const cmd = document.getElementById('cmdOutput').innerText;
+            if(selected.size === 0) {
+                alert("Lütfen önce en az bir uygulama seçin!");
+                return;
+            }
+            navigator.clipboard.writeText(cmd);
+            alert("Komut kopyalandı! PowerShell'e yapıştırıp ENTER tuşuna basabilirsiniz.");
+        }
+
+        init();
+    </script>
+</body>
+</html>
